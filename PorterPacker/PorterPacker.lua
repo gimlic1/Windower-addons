@@ -35,7 +35,9 @@ local bag_priority = {
 local storing_items = false
 local continuous = false
 local retrieve = {}
+local original_retrive = {}
 local store = {}
+local original_store = {}
 local state = 0
 local zones = {
 	[26]  = 621,	-- Tavnazian Safehold - (F-8)
@@ -47,13 +49,13 @@ local zones = {
 	[231] = 874,	-- Northern San d'Oria - (K-8)
 	[235] = 547,	-- Bastok Markets - (I-9)
 	[240] = 870,	-- Port Windurst - (L-6)
-	[245] = 10106,  -- Lower Jeuno - (I-6)
+	[245] = 10106,	-- Lower Jeuno - (I-6)
 	[247] = 138,	-- Rabao - (G-8)
-	[248] = 1139,   -- Selbina - (I-9)
+	[248] = 1139,	-- Selbina - (I-9)
 	[249] = 338,	-- Mhaura - (I-8)
 	[250] = 309,	-- Kazham - (H-9)
 	[252] = 246,	-- Norg - (G-7)
-	[256] = 43,	 -- Western Adoulin - (H-11)
+	[256] = 43,	 	-- Western Adoulin - (H-11)
 	[280] = 802,	-- Mog Garden
 	[298] = 13, 	--"Walk of Echoes [P1]"
 	[279] = 13, 	--"Walk of Echoes [P2]"
@@ -172,7 +174,7 @@ local function find_porter_items(bags)
 			if item.id ~= 0 and item.status == 0 then
 				local slip_id = slips.get_slip_id_by_item_id(item.id)
 				if slip_id and not slips.player_has_item(item.id) and
-					(not item_filter or item_filter[item.id]) and not retrieve[item.id] and
+					(not item_filter or item_filter[item.id]) and not retrieve[item.id] and not original_retrive[item.id] and
 					(slip_id ~= slips.storages[13] and item.extdata:byte(1) ~= 2 or item.extdata:byte(2)%0x80 >= 0x40 and item.extdata:byte(12) >= 0x80) then
 
 					slip_tables[slip_id] = slip_tables[slip_id] or {}
@@ -243,7 +245,7 @@ local function porter_retrieve(data, update, zone_id, menu_id)
 		for bit_position = 0, 191 do
 			if stored_items:unpack('b', math.floor(bit_position/8)+1, bit_position%8+1) == 1 then
 				local item_id = slips.items[slips.storages[slip_number]][bit_position+1]
-				if item_id and retrieve[item_id] then
+				if item_id and retrieve[item_id] and space_available(0) ~= 0 then -- added the space available check
 					if update and bit_position == update:unpack('I', 0x2A+1) then
 						retrieve[item_id] = nil
 					else
@@ -357,12 +359,21 @@ local function continuous_porter()
 		storing_items = false
 		return
 	end
-	--idintify all items to return in bag
 	
+	--idintify all items to return in bag
 	local Satchel_Slip_table = find_porter_items({5})
 	local Sack_Slip_table = find_porter_items({6})
 	local Case_Slip_table = find_porter_items({7})
-	local All_Table = find_porter_items(equippable_bags)
+	
+	--save a copy of what needs to be returned up front. Otherwise it checks stuff off if you don't have slips in your inventory already.
+	local original_retrive = {}
+	if table.length(retrieve) ~= 0 then
+		for k,v in pairs(retrieve) do
+			original_retrive[k] = v
+		end
+	end
+	
+	local All_Table = find_porter_items(equippable_bags)--added
 	
 	--trade items to porter moogle
 	if storing_items then
@@ -370,7 +381,6 @@ local function continuous_porter()
 		local i=1
 		while action do
 			action=false
-			local All_Table = find_porter_items(equippable_bags)
 			for slip_id, items in pairs(All_Table) do
 				if #items > 1 and items[1].id == slip_id then
 					local item_tables = {}
@@ -384,9 +394,10 @@ local function continuous_porter()
 						if #items2 > 1 and items2[1].id == slip_id2 then
 							action=true
 							trade_npc(npc, items2)
+							wait_for_trades()
+							put_away_items(original_retrive, bag_priority)
 						end
 					end
-					coroutine.sleep(2)
 					
 					-- return Slip back to where we got it
 					for slip_id2, items2 in pairs(Satchel_Slip_table) do
@@ -411,8 +422,17 @@ local function continuous_porter()
 					windower.add_to_chat(200, 'Consider getting Storage Slip ' .. slips.get_slip_number_by_id(slip_id) .. '. Found ' .. #items .. ' items that could be stored not in your PorterPacker File.')
 				end
 			end
+			for slip_id, items in pairs(slips.get_player_items()) do -- just added
+				if items.n ~= 0 then
+					for _, item_id in ipairs(items) do
+						if original_retrive[item_id] then
+							retrieve[item_id] = true
+						end
+					end
+				end
+			end
 		i=i+1
-		if i>20 then action = false end
+		if i>80 then action = false end
 		end
 	 end
 	--continue till all returned
@@ -420,12 +440,8 @@ local function continuous_porter()
 	storing_items = false
 	--pull items out
 	if table.length(retrieve) ~= 0 and space_available(0) ~= 0 then
-		local original_retrive = {}
-		for k,v in pairs(retrieve) do
-			original_retrive[k] = v
-		end
 		i=1
-		while table.length(retrieve) > 0 and i < 20 do
+		while table.length(retrieve) > 0 and i < 80 do
 			for slip_id, items in pairs(slips.get_player_items()) do
 				if items.n ~= 0 then
 					for _, item_id in ipairs(items) do
@@ -433,12 +449,12 @@ local function continuous_porter()
 							
 							local slip_item = find_item(slips.default_storages, slip_id, 1)
 							retrieve_items({[1]=slip_item}, equippable_bags)
-							coroutine.sleep(2)-- new
+							coroutine.sleep(1)
 							slip_item = find_item({slips.default_storages[1]}, slip_id, 1)
 							
 							if slip_item then
 								trade_npc(npc, {slip_item})
-								coroutine.sleep(2)
+								wait_for_trades()
 								put_away_items(original_retrive, bag_priority)
 							end
 						end
@@ -475,11 +491,26 @@ local function continuous_porter()
 					end
 				end
 			end
-			put_away_items(original_retrive, bag_priority)
-			coroutine.sleep(1)
+			if space_available(0) <3 then
+				coroutine.sleep(1)
+				put_away_items(original_retrive, bag_priority)
+				coroutine.sleep(1)
+			end
 			i = i +1
 		end
 	end
+	coroutine.sleep(1)
+	put_away_items(original_retrive, bag_priority)
+	coroutine.sleep(1)
+	retrieve = {}
+end
+
+function wait_for_trades()
+	local trade_wait_count = 0
+	while state ~= 0 and trade_wait_count < 100 do
+		coroutine.sleep(.1)
+		trade_wait_count = trade_wait_count + 1
+	end	
 end
 
 
