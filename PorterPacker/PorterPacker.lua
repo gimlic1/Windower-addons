@@ -393,6 +393,14 @@ local function continuous_porter()
 					for slip_id2, items2 in pairs(find_porter_items({0})) do
 						if #items2 > 1 and items2[1].id == slip_id2 then
 							action=true
+							--check NPC range
+							npc = find_npc('Porter Moogle')
+							if not npc then
+								retrieve = {}
+								store = {}
+								storing_items = false
+								return
+							end
 							trade_npc(npc, items2)
 							wait_for_trades()
 							put_away_items(original_retrive, bag_priority)
@@ -453,6 +461,14 @@ local function continuous_porter()
 							slip_item = find_item({slips.default_storages[1]}, slip_id, 1)
 							
 							if slip_item then
+								--check NPC range
+								npc = find_npc('Porter Moogle')
+								if not npc then
+									retrieve = {}
+									store = {}
+									storing_items = false
+									return
+								end
 								trade_npc(npc, {slip_item})
 								wait_for_trades()
 								put_away_items(original_retrive, bag_priority)
