@@ -25,12 +25,20 @@ local equippable_bags = {
 		10, 	--wardrobe2
 		11, 	--wardrobe3
 		12, 	--wardrobe4
+		13, 	--wardrobe5
+		14, 	--wardrobe6
+		15, 	--wardrobe7
+		16, 	--wardrobe8
 	}
 local bag_priority = {
-		12, --wardrobe4
-		11, --wardrobe3
-		10, --wardrobe2
-		8, --wardrobe
+		12,		--wardrobe4
+		11, 	--wardrobe3
+		10, 	--wardrobe2
+		8,		--wardrobe
+		13, 	--wardrobe5
+		14, 	--wardrobe6
+		15, 	--wardrobe7
+		16, 	--wardrobe8
 	}
 local storing_items = false
 local continuous = false
@@ -567,7 +575,7 @@ windower.register_event('addon command', function(...)
 		local str = 'return {\n'
 		local bags ={0}
 		if handled_commands.all:contains(commands[2]) or handled_commands.all:contains(commands[3]) then
-			bags = {0,1,2,4,5,6,7,8,9,10,11,12}
+			bags = {0,1,2,4,5,6,7,8,9,10,11,12,13,14,15,16}
 		end
 		for  __, bag_id in pairs(bags) do
 			for _, item in ipairs(windower.ffxi.get_items(bag_id)) do
